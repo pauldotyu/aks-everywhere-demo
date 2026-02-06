@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-server
+spec:
+  selector:
+    matchLabels:
+      name: llama-server
+  template:
+    metadata:
+      labels:
+        name: llama-server
+    spec:
+      containers:
+        - name: llama-server
+          image: ghcr.io/ggml-org/llama.cpp:server
+          env:
+            - name: LLAMA_ARG_PORT
+              value: "8080"
+            - name: LLAMA_ARG_HOST
+              value: "0.0.0.0"
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          resources: {}

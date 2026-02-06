@@ -1,0 +1,17 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: llama-server
+spec:
+  selector:
+    matchLabels:
+      name: llama-server
+  template:
+    spec:
+      containers:
+        - name: llama-server
+          env:
+            - name: LLAMA_ARG_HF_REPO
+              value: HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF
+            - name: LLAMA_ARG_HF_FILE
+              value: smollm-135m-instruct-add-basics-q8_0.gguf

@@ -1,0 +1,13 @@
+apiVersion: placement.kubernetes-fleet.io/v1beta1
+kind: ResourcePlacement
+metadata:
+  name: llama-server
+  namespace: argocd
+spec:
+  resourceSelectors:
+    - group: argoproj.io
+      kind: Application
+      name: llama-server
+      version: v1alpha1
+  policy:
+    placementType: PickAll

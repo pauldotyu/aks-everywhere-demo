@@ -1,0 +1,3 @@
+# Kustomize-generated secrets
+kustomize/overlays/**/secret-generator.env
+kustomize/overlays/**/registry.env
