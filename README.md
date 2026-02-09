@@ -283,7 +283,7 @@ kubectl get pods -A
 Restart the Argo CD server pods to ensure they pick up the new issuer configuration and can authenticate properly with Microsoft Entra ID using workload identity.
 
 ```bash
-kubectl rollout restart -n argocd argocd-server
+kubectl rollout restart deploy argocd-server -n argocd
 kubectl get pods -n argocd -w
 ```
 
