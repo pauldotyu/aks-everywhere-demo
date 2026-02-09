@@ -147,7 +147,10 @@ az connectedk8s connect \
 The onboarding process can take several minutes to complete. Once it's done, you can retrieve the cluster ID and OIDC issuer URL, which are needed for the next steps.
 
 ```bash
-read -r CLUSTER_ID OIDC_ISSUER <<< "$(az connectedk8s show -n kind -g $RG_NAME --query '[id,oidcIssuerProfile.issuerUrl]' -o tsv)"
+read -r CLUSTER_ID OIDC_ISSUER <<< "$(
+  az connectedk8s show -n kind -g "$RG_NAME" \
+    --query "{id:id,issuer:oidcIssuerProfile.issuerUrl}" -o tsv
+)"
 ```
 
 Add the newly connected cluster as a member of the Fleet hub. This allows you to manage it alongside other clusters and deploy applications to it via Fleet.
