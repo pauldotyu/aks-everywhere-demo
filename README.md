@@ -409,7 +409,7 @@ kubectl apply -f argocd
 In order to have the Argo CD Application deployed to the member cluster, you need to create a ResourcePlacement that targets the member cluster(s). The ResourcePlacement manifest in the `fleet/` directory is configured to target all member clusters in the fleet, but you can modify the selector to target specific clusters if you want.
 
 ```bash
-kubectl apply -f feet
+kubectl apply -f fleet
 ```
 
 After applying the ResourcePlacement, Fleet will take care of syncing the Argo CD Application resource from the hub cluster to the member cluster(s) that match the placement rules. You can check the status of the ResourcePlacement to see which clusters are targeted and whether the resources have been successfully synced.
