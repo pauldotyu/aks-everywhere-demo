@@ -163,7 +163,7 @@ az fleet member create \
 --member-cluster-id $CLUSTER_ID
 ```
 
-Grant yourself admin permissions on the Fleet Hub cluster so you can access the kube-apiserver later. The role assignment gives you the "Azure Arc Kubernetes Cluster Admin" role at the scope of the cluster resource in Azure, which translates to admin permissions on the cluster itself.
+Grant yourself "Azure Arc Kubernetes Cluster Admin" permissions on the Fleet Hub cluster so you can access the kube-apiserver later.
 
 ```bash
 az role assignment create \
@@ -178,7 +178,9 @@ Install the Argo CD extension and wire it up to Microsoft Entra ID for SSO via w
 
 The Argo CD OIDC enablement is documented [here](https://argo-cd.readthedocs.io/en/stable/operator-manual/user-management/microsoft/#configure-argo-to-use-the-new-entra-id-app-registration). The key pieces are the OIDC config which will be stored in the `argocd-cm` ConfigMap and the RBAC policy which will be stored in the `argocd-rbac-cm` ConfigMap.
 
-Create the OIDC configuration in a variable to keep everything self-contained.
+Create the OIDC configuration in a variable to make it easier to pass multiline YAML content as a `--config` value when installing the extension with Azure CLI.
+
+This configuration tells Argo CD to use Microsoft Entra ID as the OIDC provider, specifying the tenant ID and client ID of the Entra ID app registration (which was created and configured by the Terraform script). It also requests the `groups` claim in the ID token, which is essential for RBAC to work based on group membership. The `azure.workloadIdentity.useWorkloadIdentity` flag is set to true to enable workload identity federation for this OIDC provider.
 
 ```bash
 read -r -d '' OIDC_CONFIG <<EOF
@@ -197,7 +199,9 @@ requestedScopes:
 EOF
 ```
 
-Next, create the RBAC policy that maps Entra ID groups to Argo CD built-in admin role. This is a simple mapping that says anyone in the specified Azure AD group gets admin permissions in Argo CD.
+Within the Terraform script, a Microsoft Entra ID group was assigned to the app registration, so effectively anyone in that group should get access to Argo CD. The last piece of the puzzle is to authorize that group in Argo CD's RBAC configuration.
+
+The following policy mapping grants the Microsoft Entra ID group the built-in admin role.
 
 ```bash
 read -r -d '' POLICY_CSV <<EOF
@@ -205,7 +209,7 @@ g, "$ADMIN_GROUP_OBJECT_ID", role:admin
 EOF
 ```
 
-Now you can create the Argo CD extension on the cluster. The `az k8s-extension create` command is used to install the extension, and the `--config` flags are used to pass in the OIDC configuration and RBAC policy as ConfigMap entries. The extension uses a managed identity and Entra ID client, and a federated credential lets the Argo CD server service account request tokens.
+Install the Argo CD extension with the following command. This command if effectively telling Azure to install Argo CD Helm chart on the cluster, and sets it to automatically upgrade minor versions. The `--config` flags are used to pass in the OIDC configuration and RBAC policy defined above, as well as some additional configuration to disable the local admin account and the Redis HA setup since this is just a demo.
 
 ```bash
 az k8s-extension create \
@@ -226,14 +230,12 @@ az k8s-extension create \
 --config "configs.cm.admin\.enabled=false"
 ```
 
-The extension installation can take several minutes. Once it's done, you should have Argo CD running in the `argocd` namespace on the KIND cluster, and it should be configured to use Microsoft Entra ID for authentication.
-
 > [!important]
-> The extension leverages the open-source Helm chart maintained by the Argo CD community, but includes convience features for Microsoft Entra Workload Identity. The `--azure.workloadIdentity` flags are specific to the AKS extension and won't work with a vanilla Argo CD installation. The extension automates the annotation of the Argo CD server service account and the the labeling of the Argo CD server pods which are critical for workload identity federation to work properly.
+> The extension leverages the [open-source Helm chart maintained by the Argo CD community](https://github.com/argoproj/argo-helm/tree/main/charts/argo-cd). But it is important to note that this extension includes convience features for Microsoft Entra Workload Identity. The `--azure.workloadIdentity` flags are specific to the AKS extension that aren't available in the community chart. These configs are used to automate the annotation of the Argo CD server service account and the the labeling of the Argo CD server pods which are critical for workload identity federation to work properly.
 
-KIND does not always expose the correct issuer URL by default. The kube-apiserver manifest is patched so service account tokens are issued with the same issuer that Arc reports. That match is required for workload identity federation to validate tokens.
+The extension installation can take several minutes.
 
-Once the extension is installed, create a federated credential in the Entra ID app registration that was created with Terraform. The federated credential allows the Argo CD server, to request tokens from the Entra ID issuer using the service account identity. The `subject` field in the federated credential must match the format. Here you specify the Kubernetes service account that Argo CD server is using, which is `system:serviceaccount:argocd:argocd-server`. The audience is set to `api://AzureADTokenExchange` which is the default for workload identity federation in Azure.
+Once the extension is installed, create a federated credential in the Entra ID app registration created by Terraform. This lets the Argo CD server exchange its service account identity for tokens from the Entra ID issuer. Set the `subject` to the Argo CD server service account (`system:serviceaccount:argocd:argocd-server`) and the audience to `api://AzureADTokenExchange` (the default for workload identity federation).
 
 ```bash
 az ad app federated-credential create \
@@ -251,9 +253,7 @@ EOF
 )"
 ```
 
-The final step to configure Workload Identity is to patch the kube-apiserver manifest on the KIND cluster to use the same issuer URL that was set in the federated credential. This ensures that the tokens issued by the kube-apiserver are recognized and accepted by Microsoft Entra ID when Argo CD server tries to authenticate using workload identity.
-
-Since the kube-apiserver manifest is managed by the kubelet and stored in a Docker container for KIND, you need to copy it out, modify it, and copy it back in.
+In order for the service account token exchange to work, the kube-apiserver must issue tokens with the Azure Arc OIDC issuer URL. With KIND clusters, that means patching the static kube-apiserver manifest to set `--service-account-issuer` to the same issuer used in the federated credential. Because KIND runs in a container, you can use `docker cp` command to copy it out, edit it, and copy it back in.
 
 Copy the kube-apiserver manifest from the KIND control plane container to your local machine.
 
@@ -261,7 +261,7 @@ Copy the kube-apiserver manifest from the KIND control plane container to your l
 docker cp kind-control-plane:/etc/kubernetes/manifests/kube-apiserver.yaml ./kube-apiserver.yaml
 ```
 
-Patch the kube-apiserver manifest to set the `--service-account-issuer` flag to the OIDC issuer URL provided by Azure Arc. This command uses `sed` to find the existing `--service-account-issuer` flag and replace its value with the correct issuer URL. This should save a backup of the original file as `kube-apiserver.yaml.bak` in case you need to revert the change.
+Patch the kube-apiserver manifest to set `--service-account-issuer` to the Azure Arc provided OIDC issuer URL. The command below replaces the flag and saves a `kube-apiserver.yaml.bak` backup.
 
 ```bash
 sed -i '.bak' "s|--service-account-issuer=.*|--service-account-issuer=$OIDC_ISSUER|g" ./kube-apiserver.yaml
