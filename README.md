@@ -172,7 +172,7 @@ az role assignment create \
 --scope $CLUSTER_ID
 ```
 
-## ArgoCD with Entra ID
+## Argo CD with Entra ID
 
 Install the Argo CD extension and wire it up to Microsoft Entra ID for SSO via workload identity. The goal is to avoid local admin passwords and use federated identity that lines up with Azure RBAC and group membership.
 

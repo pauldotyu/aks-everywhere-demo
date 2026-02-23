@@ -14,7 +14,7 @@ output "argocd_app_client_id" {
 }
 
 output "admin_group_object_id" {
-  description = "The Object ID of the Azure AD Group with admin access to ArgoCD"
+  description = "The Object ID of the Azure AD Group with admin access to Argo CD"
   value       = data.azuread_group.example.object_id
 }
 
