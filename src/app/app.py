@@ -14,7 +14,6 @@ cl.instrument_openai()
 settings = {
     "model": os.getenv("MODEL_NAME"),
     "temperature": 0.4,
-    "max_tokens": 256,
     "top_p": 0.9,
     "frequency_penalty": 0.3,
     "presence_penalty": 0,
