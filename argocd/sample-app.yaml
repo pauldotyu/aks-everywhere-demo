@@ -1,14 +1,14 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: llama-server
+  name: sample-app
   namespace: argocd
 spec:
   project: default
   source:
     repoURL: https://github.com/pauldotyu/aks-everywhere-demo.git
     targetRevision: main
-    path: kustomize/overlays/dev
+    path: manifests/overlays/dev
   destination:
     server: https://kubernetes.default.svc
     namespace: default

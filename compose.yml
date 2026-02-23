@@ -1,0 +1,30 @@
+services:
+  llama-server:
+    image: ghcr.io/ggml-org/llama.cpp:server
+    ports:
+      - "8080:8080"
+    environment:
+      LLAMA_ARG_HF_REPO: HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF
+      LLAMA_ARG_HF_FILE: smollm-135m-instruct-add-basics-q8_0.gguf
+      LLAMA_ARG_ALIAS: smollm-135m
+      LLAMA_ARG_PORT: 8080
+      LLAMA_ARG_HOST: 0.0.0.0
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+  chainlit-app:
+    build:
+      context: src/app
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      MODEL_NAME: "HuggingFaceTB_smollm-135M-instruct-v0.2-Q8_0-GGUF_smollm-135m-instruct-add-basics-q8_0.gguf"
+      MODEL_API_KEY: "none"
+      MODEL_BASE_URL: "http://llama-server:8080/v1"
+    depends_on:
+      llama-server:
+        condition: service_healthy

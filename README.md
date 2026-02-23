@@ -264,7 +264,7 @@ docker cp kind-control-plane:/etc/kubernetes/manifests/kube-apiserver.yaml ./kub
 Patch the kube-apiserver manifest to set `--service-account-issuer` to the Azure Arc provided OIDC issuer URL. The command below replaces the flag and saves a `kube-apiserver.yaml.bak` backup.
 
 ```bash
-sed -i '.bak' "s|--service-account-issuer=.*|--service-account-issuer=$OIDC_ISSUER|g" ./kube-apiserver.yaml
+sed -i.bak "s|--service-account-issuer=.*|--service-account-issuer=$OIDC_ISSUER|g" ./kube-apiserver.yaml
 ```
 
 Copy the modified kube-apiserver manifest back into the KIND control plane container. The kubelet will automatically pick up the change and restart the kube-apiserver with the new configuration.
@@ -305,13 +305,15 @@ echo "https://localhost:9000"
 
 The command above will port-forward the Argo CD server service to `https://localhost:9000` and run it in the background. You can open that URL in your browser to access the Argo CD UI. When you click "Login with Microsoft Entra ID", you should be redirected to the Microsoft login page. After authenticating, you should be logged into Argo CD with the permissions granted by your Entra ID group membership.
 
-## Deploy llama-server
+## Deploy sample app
 
-Let's test the sample application deployment using Argo CD. The `argocd/` directory contains the manifests for deploying a llama-server application.
+Let's test the sample application deployment using Argo CD. The `argocd/` directory contains the manifests for deploying a llama.cpp server and chainlit application.
 
 [llama.cpp](https://github.com/ggml-org/llama.cpp) is a lightweight model inference server that can run small language models using the llama.cpp runtime. It's a good demo app because it has a simple API and can run on modest hardware, making it suitable for small form factor clusters like KIND.
 
-The llama-server manifests are in the `kustomize/` directory. It references the [HuggingFaceTB/SmolLM2-135M-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct) model in GGUF format, which is a quantized model format optimized for inference.
+The llama-server manifests are in the `manifests/` directory. It references the [HuggingFaceTB/SmolLM2-135M-Instruct](https://huggingface.co/HuggingFaceTB/SmolLM2-135M-Instruct) model in GGUF format, which is a quantized model format optimized for inference.
+
+The chainlit application is a simple web app that connects to the llama-server and provides a chat interface. It's included to test the model inference service.
 
 With Argo CD installed, you can deploy the application to the cluster using the Argo CD Application manifest stored in the `argocd/` directory. The manifest is configured to deploy manifests from this repo, but you can easily modify it to point to a different Git repository or path if you want to test with your own application.
 
@@ -319,41 +321,20 @@ With Argo CD installed, you can deploy the application to the cluster using the 
 kubectl apply -f argocd
 ```
 
-The application footprint is small (less than 50MB for the llama-server and less than 150MB for the model) so it should deploy quickly. You should see the application appear in the Argo CD UI and sync successfully.
+The inference server footprint is small (less than 50MB for the llama-server and less than 150MB for the model) so it should deploy quickly. You should see the app appear in the Argo CD UI and sync successfully.
 
-The application creates a Deployment with a single replica of the llama-server, which listens on port 8080. The server exposes an OpenAI API compatible endpoint for model inference.
+The llama-server deployment creates a single replica of the llama-server, which listens on port 8080. The server exposes an OpenAI API compatible endpoint for model inference.
 
-Port-forward to access the llama-server.
+The chainlit app deployment creates a single replica of the chainlit application, which listens on port 8000. The chainlit app connects to the llama-server to send user messages and receive model responses.
 
-```bash
-kubectl port-forward svc/llama-server 8080 &
-```
-
-Ensure the model is loaded and the server is responding by hitting the models endpoint.
+To test the chainlit app, port-forward the chainlit service to access the UI.
 
 ```bash
-curl http://localhost:8080/v1/models | jq
+kubectl port-forward svc/chainlit-app 8000 &
+echo "http://localhost:8000"
 ```
 
-You should see the model listed in the response. Now you can test a chat completion request to see the model in action. The example below sends a prompt about Seattle's weather in early February and requests a response from the model.
-
-```bash
-curl -s http://localhost:8080/v1/chat/completions -H "Content-Type: application/json" \
--d '{
-      "model": "HuggingFaceTB_smollm-135M-instruct-v0.2-Q8_0-GGUF_smollm-135m-instruct-add-basics-q8_0.gguf",
-      "messages": [
-        {
-          "role": "user",
-          "content": "What is Seattle’s weather typically like in early February?"
-        }
-      ],
-      "top_k": 5,
-      "temperature": 0.7,
-      "max_tokens": 100
-    }' | jq
-```
-
-It should respond with an answer to the question based on the model's training data. Keep in mind that the SmolLM2-135M model is a small model and may not have detailed information about specific topics, but it should still be able to generate a response.
+Open the URL in your browser to access the chat interface. Test it out by sending a message in the chat box. The chainlit app will forward your message to the llama-server and display the response in the chat UI. It should respond with an answer to the question based on the model's training data. Keep in mind that the SmolLM2-135M model is a small model and may not have detailed information about specific topics, but it should still be able to generate a response.
 
 Delete the Argo CD application as we will explore how to "push" this app to clusters next.
 

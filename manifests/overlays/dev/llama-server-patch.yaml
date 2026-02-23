@@ -15,3 +15,5 @@ spec:
               value: HuggingFaceTB/smollm-135M-instruct-v0.2-Q8_0-GGUF
             - name: LLAMA_ARG_HF_FILE
               value: smollm-135m-instruct-add-basics-q8_0.gguf
+            - name: LLAMA_ARG_ALIAS
+              value: smollm-135m

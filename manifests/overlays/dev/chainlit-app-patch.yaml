@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chainlit-app
+spec:
+  selector:
+    matchLabels:
+      name: chainlit-app
+  template:
+    spec:
+      containers:
+        - name: chainlit-app
+          env:
+            - name: MODEL_NAME
+              value: "HuggingFaceTB_smollm-135M-instruct-v0.2-Q8_0-GGUF_smollm-135m-instruct-add-basics-q8_0.gguf"
+            - name: MODEL_API_KEY
+              value: "none"
+            - name: MODEL_BASE_URL
+              value: "http://llama-server:8080/v1"
