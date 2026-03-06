@@ -276,15 +276,21 @@ docker cp ./kube-apiserver.yaml kind-control-plane:/etc/kubernetes/manifests/kub
 The kubelet should restart the kube-apiserver automatically after you copy the modified manifest back in. This can take a moment and `kubectl` may become temporarily unavailable while the kube-apiserver is restarting. You can check the status of the pods in the `argocd` namespace to see when the Argo CD server comes back up and starts running with the new issuer configuration.
 
 ```bash
-kubectl get ns
-kubectl get pods -A
+kubectl get pods -n kube-system
+```
+
+> [!tip]
+> You might also need to restart kube-proxy after the kube-apiserver restart to ensure it can properly communicate with the kube-apiserver using the new issuer configuration.
+
+```bash
+kubectl rollout restart deploy argocd-server -n argocd
 ```
 
 Restart the Argo CD server pods to ensure they pick up the new issuer configuration and can authenticate properly with Microsoft Entra ID using workload identity.
 
 ```bash
 kubectl rollout restart deploy argocd-server -n argocd
-kubectl get pods -n argocd -w
+kubectl get pods -n argocd
 ```
 
 Confirm that the Argo CD server pod has a properly issued token with the correct issuer by exec'ing into the pod and inspecting the token file.
